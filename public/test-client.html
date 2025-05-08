@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WebSocket Message Test</title>
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .container {
+        display: flex;
+        gap: 20px;
+      }
+      .panel {
+        flex: 1;
+        padding: 20px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+      }
+      .message-list {
+        height: 300px;
+        overflow-y: auto;
+        border: 1px solid #eee;
+        padding: 10px;
+        margin-bottom: 10px;
+      }
+      .message {
+        margin-bottom: 10px;
+        padding: 10px;
+        border-radius: 5px;
+      }
+      .sent {
+        background-color: #e3f2fd;
+        margin-left: 20%;
+      }
+      .received {
+        background-color: #f5f5f5;
+        margin-right: 20%;
+      }
+      input,
+      button,
+      textarea {
+        padding: 8px;
+        margin: 5px 0;
+      }
+      button {
+        background-color: #4caf50;
+        color: white;
+        border: none;
+        cursor: pointer;
+      }
+      button:hover {
+        background-color: #45a049;
+      }
+      .status {
+        color: #666;
+        font-style: italic;
+      }
+      .debug {
+        margin-top: 20px;
+        padding: 10px;
+        background-color: #f9f9f9;
+        border: 1px solid #ddd;
+        font-family: monospace;
+        overflow-x: auto;
+      }
+      #debugOutput {
+        max-height: 200px;
+        overflow-y: auto;
+      }
+      .tabs {
+        display: flex;
+        border-bottom: 1px solid #ccc;
+        margin-bottom: 10px;
+      }
+      .tab {
+        padding: 10px 20px;
+        cursor: pointer;
+        border: 1px solid transparent;
+      }
+      .tab.active {
+        border: 1px solid #ccc;
+        border-bottom-color: white;
+        border-radius: 5px 5px 0 0;
+        margin-bottom: -1px;
+      }
+      .tab-content {
+        display: none;
+      }
+      .tab-content.active {
+        display: block;
+      }
+      .connection-options {
+        margin-top: 10px;
+        padding: 10px;
+        border: 1px solid #eee;
+        border-radius: 5px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>WebSocket Message Test</h1>
+
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('connection')">Connection</div>
+      <div class="tab" onclick="switchTab('messaging')">Messaging</div>
+      <div class="tab" onclick="switchTab('groups')">Groups</div>
+      <div class="tab" onclick="switchTab('debug')">Debug</div>
+    </div>
+
+    <div id="connection" class="tab-content active">
+      <div class="panel">
+        <h2>Connection Settings</h2>
+        <div>
+          <input
+            type="text"
+            id="serverUrl"
+            placeholder="Server URL (default: http://localhost:8000)"
+            value="http://localhost:8000"
+            style="width: 100%"
+          />
+          <input
+            type="text"
+            id="token"
+            placeholder="Enter JWT Token"
+            style="width: 100%"
+          />
+          <div class="connection-options">
+            <label>
+              <input type="checkbox" id="usePollingOnly" />
+              Use polling only (no WebSocket) </label
+            ><br />
+            <label>
+              <input type="checkbox" id="forceNew" checked />
+              Force new connection
+            </label>
+          </div>
+          <div style="display: flex; gap: 10px">
+            <button onclick="connect()" style="flex: 1">Connect</button>
+            <button
+              onclick="disconnect()"
+              style="flex: 1; background-color: #f44336"
+            >
+              Disconnect
+            </button>
+          </div>
+        </div>
+        <p id="connectionStatus" class="status">Not connected</p>
+        <div id="userInfo" style="margin-top: 15px; display: none">
+          <strong>Connected User:</strong>
+          <div id="userDetails"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="messaging" class="tab-content">
+      <div class="container">
+        <div class="panel">
+          <h2>Send Message</h2>
+          <div>
+            <input
+              type="text"
+              id="receiverId"
+              placeholder="Receiver ID"
+              style="width: 100%"
+            />
+            <textarea
+              id="messageContent"
+              placeholder="Type your message"
+              style="width: 100%; height: 100px"
+            ></textarea>
+            <button onclick="sendMessage()">Send Message</button>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Messages</h2>
+        <div class="message-list" id="messageList"></div>
+        <button onclick="getMessageHistory()">Refresh Messages</button>
+      </div>
+    </div>
+
+    <div id="groups" class="tab-content">
+      <div class="container">
+        <div class="panel">
+          <h2>Groups</h2>
+          <div>
+            <input
+              type="text"
+              id="groupId"
+              placeholder="Group ID"
+              style="width: 100%"
+            />
+            <div style="display: flex; gap: 10px">
+              <button onclick="joinGroup()" style="flex: 1">Join Group</button>
+              <button
+                onclick="leaveGroup()"
+                style="flex: 1; background-color: #f44336"
+              >
+                Leave Group
+              </button>
+            </div>
+          </div>
+          <div id="userGroups" style="margin-top: 15px">
+            <h3>Your Groups</h3>
+            <div id="groupsList"></div>
+            <button onclick="refreshUserGroups()" style="margin-top: 10px">Refresh Groups</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Group Messages</h2>
+          <div>
+            <textarea
+              id="groupMessageContent"
+              placeholder="Type your message"
+              style="width: 100%; height: 100px"
+            ></textarea>
+            <button onclick="sendGroupMessage()">Send to Group</button>
+          </div>
+          <div class="message-list" id="groupMessageList"></div>
+          <button onclick="getGroupMessages()">Refresh Messages</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="debug" class="tab-content">
+      <div class="panel debug">
+        <h2>Debug Info</h2>
+        <div style="display: flex; gap: 10px; margin-bottom: 10px">
+          <button onclick="clearDebug()" style="flex: 1">
+            Clear Debug Log
+          </button>
+          <button
+            onclick="testConnection()"
+            style="flex: 1; background-color: #2196f3"
+          >
+            Test Connection
+          </button>
+        </div>
+        <div id="debugOutput"></div>
+      </div>
+    </div>
+
+    <script>
+      let socket;
+      let receivedMessageIds = new Set(); // Track received message IDs to prevent duplicates
+      const messageList = document.getElementById("messageList");
+      const connectionStatus = document.getElementById("connectionStatus");
+      const debugOutput = document.getElementById("debugOutput");
+      const userInfo = document.getElementById("userInfo");
+      const userDetails = document.getElementById("userDetails");
+
+      // Switch between tabs
+      function switchTab(tabName) {
+        // Hide all tabs
+        document.querySelectorAll(".tab-content").forEach((tab) => {
+          tab.classList.remove("active");
+        });
+        document.querySelectorAll(".tab").forEach((tab) => {
+          tab.classList.remove("active");
+        });
+
+        // Show selected tab
+        document.getElementById(tabName).classList.add("active");
+        document
+          .querySelector(`.tab[onclick="switchTab('${tabName}')"]`)
+          .classList.add("active");
+      }
+
+      // Debug logging function
+      function logDebug(message, data) {
+        const timestamp = new Date().toLocaleTimeString();
+        const logEntry = document.createElement("div");
+        logEntry.innerHTML = `<strong>${timestamp}</strong>: ${message}`;
+
+        if (data) {
+          try {
+            if (typeof data === "object") {
+              const pre = document.createElement("pre");
+              pre.textContent = JSON.stringify(data, null, 2);
+              logEntry.appendChild(pre);
+            } else {
+              logEntry.innerHTML += ` - ${data}`;
+            }
+          } catch (e) {
+            logEntry.innerHTML += ` - [Error stringifying data: ${e.message}]`;
+          }
+        }
+
+        debugOutput.appendChild(logEntry);
+        debugOutput.scrollTop = debugOutput.scrollHeight;
+        console.log(message, data);
+      }
+
+      function clearDebug() {
+        debugOutput.innerHTML = "";
+      }
+
+      function disconnect() {
+        if (socket) {
+          socket.disconnect();
+          connectionStatus.textContent = "Manually disconnected";
+          connectionStatus.style.color = "blue";
+          userInfo.style.display = "none";
+          logDebug("Manually disconnected from server");
+        } else {
+          connectionStatus.textContent = "Not connected";
+          connectionStatus.style.color = "gray";
+        }
+      }
+
+      function testConnection() {
+        const serverUrl =
+          document.getElementById("serverUrl").value || "http://localhost:8080";
+        logDebug(`Testing connection to ${serverUrl}`);
+
+        // Make a simple fetch request to server health endpoint
+        fetch(`${serverUrl}/health`)
+          .then((response) => {
+            if (response.ok) {
+              return response.json();
+            }
+            throw new Error(
+              `Server returned ${response.status}: ${response.statusText}`
+            );
+          })
+          .then((data) => {
+            logDebug("Server health check successful", data);
+          })
+          .catch((error) => {
+            logDebug("Server health check failed", error.message);
+          });
+      }
+
+      function connect() {
+        const token = document.getElementById("token").value;
+        const serverUrl =
+          document.getElementById("serverUrl").value || "http://localhost:8080";
+        const usePollingOnly =
+          document.getElementById("usePollingOnly").checked;
+        const forceNew = document.getElementById("forceNew").checked;
+
+        if (!token) {
+          alert("Please enter a JWT token");
+          return;
+        }
+
+        // Disconnect existing socket if any
+        if (socket) {
+          socket.disconnect();
+        }
+
+        // Clear tracked message IDs
+        receivedMessageIds.clear();
+
+        logDebug("Connecting to server", {
+          serverUrl,
+          usePollingOnly,
+          forceNew,
+        });
+
+        connectionStatus.textContent = "Connecting...";
+        connectionStatus.style.color = "orange";
+        userInfo.style.display = "none";
+
+        try {
+          // Configure transports based on user selection
+          const transports = usePollingOnly
+            ? ["polling"]
+            : ["polling", "websocket"];
+
+          // Create socket instance with minimal options
+          socket = io(serverUrl, {
+            auth: { token },
+            transports,
+            reconnection: true,
+            reconnectionAttempts: 5,
+            reconnectionDelay: 1000,
+            timeout: 20000,
+            forceNew,
+            withCredentials: true,
+          });
+
+          logDebug("Socket.IO instance created", { transports });
+        } catch (error) {
+          logDebug("Error creating Socket.IO instance", error);
+          connectionStatus.textContent = "Failed to create socket instance";
+          connectionStatus.style.color = "red";
+          return;
+        }
+
+        // Connection events
+        socket.on("connect", () => {
+          connectionStatus.textContent = "Connected";
+          connectionStatus.style.color = "green";
+          logDebug("Socket connected", {
+            id: socket.id,
+            transport: socket.io.engine.transport.name,
+            upgraded: socket.io.engine.upgraded,
+          });
+        });
+
+        socket.on("connection_successful", (userData) => {
+          logDebug("Connection authenticated", userData);
+          userInfo.style.display = "block";
+          userDetails.innerHTML = `
+            <div>ID: ${userData.userId}</div>
+            <div>Email: ${userData.email}</div>
+          `;
+          
+          // Automatically fetch user groups after successful connection
+          refreshUserGroups();
+        });
+
+        socket.on("disconnect", (reason) => {
+          connectionStatus.textContent = `Disconnected: ${reason}`;
+          connectionStatus.style.color = "red";
+          userInfo.style.display = "none";
+          logDebug("Socket disconnected", { reason });
+        });
+
+        socket.on("connect_error", (error) => {
+          connectionStatus.textContent = "Connection error: " + error.message;
+          connectionStatus.style.color = "red";
+          userInfo.style.display = "none";
+          logDebug("Connection error", {
+            message: error.message,
+            transport: socket.io?.engine?.transport?.name || "unknown",
+            upgraded: socket.io?.engine?.upgraded || false,
+          });
+        });
+
+        socket.on("reconnect_attempt", (attemptNumber) => {
+          connectionStatus.textContent = `Reconnecting... Attempt ${attemptNumber}`;
+          connectionStatus.style.color = "orange";
+          logDebug("Reconnection attempt", { attemptNumber });
+        });
+
+        socket.on("reconnect", (attemptNumber) => {
+          connectionStatus.textContent = `Reconnected after ${attemptNumber} attempts`;
+          connectionStatus.style.color = "green";
+          logDebug("Reconnected", { attemptNumber });
+        });
+
+        socket.on("reconnect_error", (error) => {
+          connectionStatus.textContent = "Reconnection error: " + error.message;
+          connectionStatus.style.color = "red";
+          logDebug("Reconnection error", { message: error.message });
+        });
+
+        // Ping-pong to help keep connection alive
+        socket.on("ping", (data) => {
+          logDebug("Ping received", data);
+          socket.emit("pong", { timestamp: new Date().toISOString() });
+        });
+
+        // Message events - prevent duplicates by checking message ID
+        socket.on("new_message", (message) => {
+          logDebug("New message received", message);
+          
+          // Check if we've already displayed this message
+          if (message.id && !receivedMessageIds.has(message.id)) {
+            receivedMessageIds.add(message.id);
+            addMessageToUI(message, "received");
+          } else {
+            logDebug("Skipped duplicate message", { id: message.id });
+          }
+        });
+
+        socket.on("message_sent", (message) => {
+          logDebug("Message sent confirmation", message);
+          
+          // Track sent messages too
+          if (message.id) {
+            receivedMessageIds.add(message.id);
+          }
+          
+          addMessageToUI(message, "sent");
+        });
+
+        socket.on("messages", (messages) => {
+          logDebug("Message history received", { count: messages.length });
+          messageList.innerHTML = "";
+          
+          // Reset tracked message IDs for this conversation
+          receivedMessageIds.clear();
+          
+          messages.forEach((message) => {
+            // Track these message IDs
+            if (message.id) {
+              receivedMessageIds.add(message.id);
+            }
+            
+            const type =
+              message.senderId === socket.auth.userId ? "sent" : "received";
+            addMessageToUI(message, type);
+          });
+        });
+
+        socket.on("error", (error) => {
+          logDebug("Socket error", error);
+          alert("Error: " + error.message);
+        });
+
+        // Additional engine-level debugging
+        socket.io.engine.on("upgrade", (transport) => {
+          logDebug("Transport upgraded", { transport: transport.name });
+        });
+
+        socket.io.engine.on("upgradeError", (err) => {
+          logDebug("Transport upgrade error", { message: err.message });
+        });
+
+        // Group message events
+        socket.on("new_group_message", (message) => {
+          logDebug("New group message received", message);
+          const type =
+            message.senderId === socket.auth.userId ? "sent" : "received";
+          addGroupMessageToUI(message, type);
+        });
+
+        socket.on("group_messages", (messages) => {
+          logDebug("Group message history received", {
+            count: messages.length,
+          });
+          const groupMessageList = document.getElementById("groupMessageList");
+          groupMessageList.innerHTML = "";
+          messages.forEach((message) => {
+            const type =
+              message.senderId === socket.auth.userId ? "sent" : "received";
+            addGroupMessageToUI(message, type);
+          });
+        });
+
+        socket.on("user_groups", (groups) => {
+          logDebug("User groups received", { groups });
+          const groupsList = document.getElementById("groupsList");
+          
+          if (groups && groups.length > 0) {
+            groupsList.innerHTML = groups
+              .map(
+                (group) => `
+              <div class="group-item" style="padding: 10px; border: 1px solid #eee; margin-bottom: 5px;">
+                <strong>${group.name || 'Unnamed Group'}</strong>
+                <div>ID: ${group.id}</div>
+                <div>Members: ${group.members ? group.members.length : 'Unknown'}</div>
+              </div>
+            `
+              )
+              .join("");
+          } else {
+            groupsList.innerHTML = "<p>No groups found</p>";
+          }
+        });
+
+        // Group membership events
+        socket.on("group_joined", (data) => {
+          logDebug("Joined group", data);
+          refreshUserGroups();
+          alert(`Successfully joined group: ${data.groupId}`);
+        });
+        
+        socket.on("group_left", (data) => {
+          logDebug("Left group", data);
+          refreshUserGroups();
+          alert(`Successfully left group: ${data.groupId}`);
+        });
+        
+        socket.on("group_member_joined", (data) => {
+          logDebug("New member joined group", data);
+          alert(`User ${data.userId} joined group ${data.groupId}`);
+        });
+
+        socket.on("group_member_left", (data) => {
+          logDebug("Member left group", data);
+          alert(`User ${data.userId} left group ${data.groupId}`);
+        });
+      }
+
+      function sendMessage() {
+        if (!socket || !socket.connected) {
+          alert("Please connect first");
+          return;
+        }
+
+        const receiverId = document.getElementById("receiverId").value;
+        const content = document.getElementById("messageContent").value;
+
+        if (!receiverId || !content) {
+          alert("Please enter both receiver ID and message content");
+          return;
+        }
+
+        const messageData = { receiverId, content };
+        logDebug("Sending message", messageData);
+
+        socket.emit("private_message", messageData);
+        document.getElementById("messageContent").value = "";
+      }
+
+      function getMessageHistory() {
+        if (!socket || !socket.connected) {
+          alert("Please connect first");
+          return;
+        }
+
+        const receiverId = document.getElementById("receiverId").value;
+        if (!receiverId) {
+          alert("Please enter receiver ID");
+          return;
+        }
+
+        logDebug("Getting message history with user", { userId: receiverId });
+        socket.emit("get_messages", { userId: receiverId });
+      }
+
+      function addMessageToUI(message, type) {
+        const messageDiv = document.createElement("div");
+        messageDiv.className = `message ${type}`;
+
+        let sender = "Unknown";
+        try {
+          sender =
+            type === "sent"
+              ? "You"
+              : `${message.sender?.firstName || ""} ${
+                  message.sender?.lastName || ""
+                }`.trim() ||
+                message.sender?.email ||
+                "Unknown";
+        } catch (e) {
+          logDebug("Error formatting sender name", e);
+        }
+
+        const time = new Date(message.createdAt).toLocaleTimeString();
+
+        messageDiv.innerHTML = `
+          <strong>${sender}</strong>
+          <span style="float: right;">${time}</span>
+          <p>${message.content}</p>
+        `;
+
+        messageList.appendChild(messageDiv);
+        messageList.scrollTop = messageList.scrollHeight;
+      }
+
+      // Group-related functions
+      function joinGroup() {
+        if (!socket || !socket.connected) {
+          alert("Please connect first");
+          return;
+        }
+
+        const groupId = document.getElementById("groupId").value;
+        if (!groupId) {
+          alert("Please enter a group ID");
+          return;
+        }
+
+        logDebug("Joining group", { groupId });
+        socket.emit("join_group", { groupId });
+      }
+
+      function leaveGroup() {
+        if (!socket || !socket.connected) {
+          alert("Please connect first");
+          return;
+        }
+
+        const groupId = document.getElementById("groupId").value;
+        if (!groupId) {
+          alert("Please enter a group ID");
+          return;
+        }
+
+        logDebug("Leaving group", { groupId });
+        socket.emit("leave_group", { groupId });
+      }
+
+      function sendGroupMessage() {
+        if (!socket || !socket.connected) {
+          alert("Please connect first");
+          return;
+        }
+
+        const groupId = document.getElementById("groupId").value;
+        const content = document.getElementById("groupMessageContent").value;
+
+        if (!groupId || !content) {
+          alert("Please enter both group ID and message content");
+          return;
+        }
+
+        logDebug("Sending group message", { groupId, content });
+        socket.emit("group_message", { groupId, content });
+        document.getElementById("groupMessageContent").value = "";
+      }
+
+      function getGroupMessages() {
+        if (!socket || !socket.connected) {
+          alert("Please connect first");
+          return;
+        }
+
+        const groupId = document.getElementById("groupId").value;
+        if (!groupId) {
+          alert("Please enter a group ID");
+          return;
+        }
+
+        logDebug("Getting group messages", { groupId });
+        socket.emit("get_group_messages", { groupId });
+      }
+
+      function refreshUserGroups() {
+        if (!socket || !socket.connected) {
+          alert("Please connect first");
+          return;
+        }
+
+        logDebug("Getting user groups");
+        socket.emit("get_user_groups");
+      }
+
+      function addGroupMessageToUI(message, type) {
+        const messageDiv = document.createElement("div");
+        messageDiv.className = `message ${type}`;
+
+        let sender = "Unknown";
+        try {
+          sender =
+            type === "sent"
+              ? "You"
+              : `${message.sender?.firstName || ""} ${
+                  message.sender?.lastName || ""
+                }`.trim() ||
+                message.sender?.email ||
+                "Unknown";
+        } catch (e) {
+          logDebug("Error formatting sender name", e);
+        }
+
+        const time = new Date(message.createdAt).toLocaleTimeString();
+        const groupMessageList = document.getElementById("groupMessageList");
+
+        messageDiv.innerHTML = `
+          <strong>${sender}</strong>
+          <span style="float: right;">${time}</span>
+          <p>${message.content}</p>
+        `;
+
+        groupMessageList.appendChild(messageDiv);
+        groupMessageList.scrollTop = groupMessageList.scrollHeight;
+      }
+
+      // Log page load for debugging
+      logDebug("Page loaded and ready");
+    </script>
+  </body>
+</html>
