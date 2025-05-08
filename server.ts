@@ -38,13 +38,13 @@ const swaggerOptions = {
     },
     servers: [
       {
-        url: "http://localhost:8000",
-        description: "Development server",
+        url: 'https://test-um4e.onrender.com',
+        description: "Public URL",
       },
       {
-        url: process.env.NGROK_URL || "https://your-ngrok-url.ngrok.io",
-        description: "Public URL (via ngrok)",
-      },
+        url: "http://localhost:8000",
+        description: "Development server",
+      }
     ],
     components: {
       securitySchemes: {
