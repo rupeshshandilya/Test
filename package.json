@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node build/server.js",
     "dev": "ts-node-dev --respawn --transpile-only server.ts",
-    "build": "tsc",
+    "build": "npx prisma generate && tsc",
     "seed": "ts-node /seeders/index.ts",
     "seed:admin": "ts-node seeders/adminSeeder.ts",
     "ngrok": "ts-node ngrok.config.ts"
