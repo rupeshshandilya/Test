@@ -164,7 +164,7 @@ io.use(socketAuthMiddleware);
 // Initialize socket handler
 new SocketHandler(io);
 
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 800;
 export const prisma = new PrismaClient();
 
 // Error handling middleware
