@@ -140,32 +140,36 @@ export const activateUser = async (
   }
 };
 
-export const resendActivationCode = async (req: Request, res: Response, next: NextFunction) => {
+export const resendActivationCode = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     const { email } = req.body;
 
     if (!email) {
-      return res.status(400).json({ message: 'Email is required' });
+      return res.status(400).json({ message: "Email is required" });
     }
 
     try {
       const { token, activationCode } = await generateNewActivationCode(email);
 
       res.status(200).json({
-        message: 'New activation code sent successfully',
+        message: "New activation code sent successfully",
         activationToken: token,
       });
     } catch (error) {
       if (error instanceof Error) {
-        if (error.message === 'User not found') {
-          return res.status(404).json({ message: 'User not found' });
+        if (error.message === "User not found") {
+          return res.status(404).json({ message: "User not found" });
         }
-        if (error.message === 'User is already verified') {
-          return res.status(400).json({ message: 'User is already verified' });
+        if (error.message === "User is already verified") {
+          return res.status(400).json({ message: "User is already verified" });
         }
-        if (error.message.includes('ACTIVATION_TOKEN')) {
-          return res.status(500).json({ 
-            message: 'Server configuration error. Please contact support.' 
+        if (error.message.includes("ACTIVATION_TOKEN")) {
+          return res.status(500).json({
+            message: "Server configuration error. Please contact support.",
           });
         }
       }
@@ -211,7 +215,9 @@ export const login = async (req: Request, res: Response) => {
     const token = jwt.sign(
       { userId: user.id, role: user.role },
       process.env.JWT_SECRET!,
-      { expiresIn: process.env.JWT_EXPIRES_IN }
+      {
+        expiresIn: "24h",
+      }
     );
 
     res.json({
